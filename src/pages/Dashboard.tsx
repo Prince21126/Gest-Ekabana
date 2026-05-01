@@ -14,34 +14,83 @@ export function Dashboard() {
     totalDonations: 0,
     recentDonations: [] as any[]
   });
+  const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let unsubscribeChildren: () => void;
     let unsubscribeDonations: () => void;
+    let childrenData: any[] = [];
+    let donationsData: any[] = [];
+
+    const processChartData = (children: any[], donations: any[]) => {
+      const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      const currentYear = new Date().getFullYear();
+      
+      const byMonth = Array.from({length: 12}, (_, i) => ({
+        name: months[i],
+        enfants: 0,
+        dons: 0,
+      }));
+
+      // Count children registered per month
+      children.forEach(c => {
+        if (c.createdAt) {
+          const d = new Date(c.createdAt);
+          if (d.getFullYear() === currentYear) {
+            byMonth[d.getMonth()].enfants += 1;
+          }
+        }
+      });
+      
+      // Calculate running total for children (effectifs)
+      let runningChildren = 0;
+      byMonth.forEach(month => {
+        runningChildren += month.enfants;
+        month.enfants = runningChildren;
+      });
+
+      // Aggregate donations per month
+      donations.forEach(d => {
+        if (d.createdAt && d.type === 'money') {
+          const date = new Date(d.createdAt);
+          if (date.getFullYear() === currentYear) {
+            byMonth[date.getMonth()].dons += (d.amount || 0);
+          }
+        }
+      });
+
+      const currentMonth = new Date().getMonth();
+      let startIndex = currentMonth - 5;
+      if (startIndex < 0) startIndex = 0; // Just show from Jan if not 6 months yet
+      
+      setChartData(byMonth.slice(startIndex, currentMonth + 1));
+    };
 
     if (role === 'director' || role === 'social_worker') {
       const qChildren = query(collection(db, 'children'));
       unsubscribeChildren = onSnapshot(qChildren, (snapshot) => {
-        const children = snapshot.docs.map(doc => doc.data());
+        childrenData = snapshot.docs.map(doc => doc.data());
         setStats(prev => ({
           ...prev,
-          totalChildren: children.length,
-          activeChildren: children.filter(c => c.status === 'active').length,
+          totalChildren: childrenData.length,
+          activeChildren: childrenData.filter(c => c.status === 'active').length,
         }));
+        processChartData(childrenData, donationsData);
       }, (error) => handleFirestoreError(error, OperationType.GET, 'children'));
     }
 
     if (role === 'director' || role === 'accountant') {
       const qDonations = query(collection(db, 'donations'));
       unsubscribeDonations = onSnapshot(qDonations, (snapshot) => {
-        const donations = snapshot.docs.map(doc => doc.data());
-        const total = donations.filter(d => d.type === 'money').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        donationsData = snapshot.docs.map(doc => doc.data());
+        const total = donationsData.filter(d => d.type === 'money').reduce((acc, curr) => acc + (curr.amount || 0), 0);
         setStats(prev => ({
           ...prev,
           totalDonations: total,
-          recentDonations: donations.sort((a, b) => b.createdAt - a.createdAt).slice(0, 5)
+          recentDonations: donationsData.sort((a, b) => b.createdAt - a.createdAt).slice(0, 5)
         }));
+        processChartData(childrenData, donationsData);
       }, (error) => handleFirestoreError(error, OperationType.GET, 'donations'));
     }
 
@@ -52,15 +101,6 @@ export function Dashboard() {
       if (unsubscribeDonations) unsubscribeDonations();
     };
   }, [role]);
-
-  const mockChartData = [
-    { name: 'Jan', enfants: 40, dons: 2400 },
-    { name: 'Fév', enfants: 42, dons: 1398 },
-    { name: 'Mar', enfants: 42, dons: 9800 },
-    { name: 'Avr', enfants: 45, dons: 3908 },
-    { name: 'Mai', enfants: 48, dons: 4800 },
-    { name: 'Juin', enfants: 50, dons: 3800 },
-  ];
 
   if (loading) {
     return <div>Chargement...</div>;
@@ -140,17 +180,21 @@ export function Dashboard() {
              Évolution des effectifs et dons
           </div>
           <div className="flex-1 min-h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} dy={10} />
-                <YAxis yAxisId="left" orientation="left" stroke="#2563eb" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
-                <YAxis yAxisId="right" orientation="right" stroke="#16a34a" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
-                <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'}} />
-                <Bar yAxisId="left" dataKey="enfants" fill="#2563eb" radius={[2, 2, 0, 0]} name="Enfants" maxBarSize={30} />
-                <Bar yAxisId="right" dataKey="dons" fill="#16a34a" radius={[2, 2, 0, 0]} name="Dons ($)" maxBarSize={30} />
-              </BarChart>
-            </ResponsiveContainer>
+             {chartData.length > 0 ? (
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} dy={10} />
+                   <YAxis yAxisId="left" orientation="left" stroke="#2563eb" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
+                   <YAxis yAxisId="right" orientation="right" stroke="#16a34a" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
+                   <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'}} />
+                   <Bar yAxisId="left" dataKey="enfants" fill="#2563eb" radius={[2, 2, 0, 0]} name="Enfants" maxBarSize={30} />
+                   <Bar yAxisId="right" dataKey="dons" fill="#16a34a" radius={[2, 2, 0, 0]} name="Dons ($)" maxBarSize={30} />
+                 </BarChart>
+               </ResponsiveContainer>
+             ) : (
+               <div className="flex items-center justify-center h-full text-slate-500 text-[12px]">Récolte des données en cours...</div>
+             )}
           </div>
         </div>
 

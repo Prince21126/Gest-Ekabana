@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { collection, onSnapshot, query, setDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { Plus, Search, User as UserIcon } from 'lucide-react';
+import { Plus, Search, User as UserIcon, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function ChildrenList() {
@@ -10,6 +10,7 @@ export function ChildrenList() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -72,9 +73,14 @@ export function ChildrenList() {
     return Math.abs(age_dt.getUTCFullYear() - 1970);
   };
 
-  const filteredChildren = children.filter(c => 
-    `${c.firstName} ${c.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredChildren = children.filter(c => {
+    const matchName = `${c.firstName} ${c.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchFilter = filterType === 'all' ? true : 
+                        filterType === 'boys' ? c.gender === 'M' :
+                        filterType === 'girls' ? c.gender === 'F' :
+                        filterType === 'active' ? c.status === 'active' : true;
+    return matchName && matchFilter;
+  });
 
   return (
     <motion.div 
@@ -98,17 +104,36 @@ export function ChildrenList() {
       </div>
 
       <div className="bg-white rounded-[6px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 bg-slate-50/30">
           <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Registre Récent des Enfants</div>
-          <div className="relative w-full sm:w-[280px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Rechercher par nom..."
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-[6px] text-[13px] focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center bg-white border border-slate-200 rounded-[6px] pl-2 pr-1 py-1 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all w-full sm:w-[240px]">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Rechercher par nom..."
+                className="w-full px-2 py-1 text-[13px] focus:outline-none bg-transparent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="relative shrink-0">
+              <select 
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 rounded-[6px] pl-8 pr-8 py-2 text-[13px] font-medium text-slate-700 shadow-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+              >
+                <option value="all">Tous les enfants</option>
+                <option value="active">Actifs (Internes)</option>
+                <option value="boys">Garçons</option>
+                <option value="girls">Filles</option>
+              </select>
+              <Filter className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -216,6 +241,8 @@ export function ChildrenList() {
                     <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Statut des Parents<span className="text-red-500 ml-1">*</span></label>
                     <select required className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50 hover:bg-slate-100 focus:bg-white transition-shadow" value={formData.parentsStatus} onChange={e => setFormData({...formData, parentsStatus: e.target.value})}>
                       <option value="alive">Vivants</option>
+                      <option value="father_only">Père uniquement (en vie)</option>
+                      <option value="mother_only">Mère uniquement (en vie)</option>
                       <option value="deceased">Décédés</option>
                       <option value="unknown">Inconnus</option>
                       <option value="other">Autre / Géré par un tuteur</option>

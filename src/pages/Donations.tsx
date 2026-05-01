@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { collection, onSnapshot, query, setDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
-import { Plus, Search, HeartHandshake, DollarSign, Package } from 'lucide-react';
+import { Plus, Search, HeartHandshake, DollarSign, Package, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Donations() {
@@ -11,6 +11,7 @@ export function Donations() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
   const [selectedDonor, setSelectedDonor] = useState<any | null>(null);
 
   // Form state
@@ -20,9 +21,12 @@ export function Donations() {
     donorPhone: '',
     donorAddress: '',
     type: 'money',
+    currency: 'USD',
     amount: '',
     itemDescription: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    receivedBy: auth.currentUser?.displayName || auth.currentUser?.email || '',
+    paymentMethod: 'cash'
   });
 
   useEffect(() => {
@@ -65,14 +69,17 @@ export function Donations() {
       await setDoc(doc(db, 'donations', newId), {
         donorId,
         type: formData.type,
+        currency: formData.type === 'money' ? formData.currency : null,
         amount: formData.type === 'money' ? parseFloat(formData.amount) : 0,
         itemDescription: formData.type === 'in_kind' ? formData.itemDescription : '',
         date: formData.date,
+        receivedBy: formData.receivedBy,
+        paymentMethod: formData.type === 'money' ? formData.paymentMethod : null,
         recordedBy: auth.currentUser.uid,
         createdAt: Date.now()
       });
       setShowAddModal(false);
-      setFormData({ donorName: '', donorEmail: '', donorPhone: '', donorAddress: '', type: 'money', amount: '', itemDescription: '', date: new Date().toISOString().split('T')[0] });
+      setFormData({ donorName: '', donorEmail: '', donorPhone: '', donorAddress: '', type: 'money', currency: 'USD', amount: '', itemDescription: '', date: new Date().toISOString().split('T')[0], receivedBy: auth.currentUser?.displayName || auth.currentUser?.email || '', paymentMethod: 'cash' });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'donations');
     }
@@ -84,9 +91,12 @@ export function Donations() {
 
   const filteredDonations = donations.filter(don => {
     const donorName = getDonor(don.donorId)?.name || 'Inconnu';
-    return searchTerm === '' || 
+    const matchName = searchTerm === '' || 
       donorName.toLowerCase().includes(searchTerm.toLowerCase()) || 
       don.itemDescription?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchFilter = filterType === 'all' ? true : don.type === filterType;
+    return matchName && matchFilter;
   });
 
   return (
@@ -111,17 +121,35 @@ export function Donations() {
       </div>
 
       <div className="bg-white rounded-[6px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 bg-slate-50/30">
           <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Flux des Dons Entrants</div>
-          <div className="relative w-full sm:w-[280px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Filtrer..."
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-[6px] text-[13px] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-sm bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center bg-white border border-slate-200 rounded-[6px] pl-2 pr-1 py-1 shadow-sm focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all w-full sm:w-[240px]">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Filtrer..."
+                className="w-full px-2 py-1 text-[13px] focus:outline-none bg-transparent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="relative shrink-0">
+              <select 
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 rounded-[6px] pl-8 pr-8 py-2 text-[13px] font-medium text-slate-700 shadow-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
+              >
+                <option value="all">Tous les dons</option>
+                <option value="money">Financiers</option>
+                <option value="in_kind">En Nature</option>
+              </select>
+              <Filter className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -167,7 +195,7 @@ export function Donations() {
                       )}
                     </td>
                     <td className={`px-4 py-3 text-slate-700 ${don.type === 'money' ? 'font-mono font-medium' : ''}`}>
-                      {don.type === 'money' ? `$${parseFloat(don.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : don.itemDescription}
+                      {don.type === 'money' ? `${parseFloat(don.amount).toLocaleString(undefined, {minimumFractionDigits: don.currency === 'USD' ? 2 : 0, maximumFractionDigits: don.currency === 'USD' ? 2 : 0})} ${don.currency || 'USD'}` : don.itemDescription}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       {new Date(don.date).toLocaleDateString()}
@@ -237,9 +265,35 @@ export function Donations() {
               </div>
 
                {formData.type === 'money' ? (
-                  <div>
-                    <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Montant (USD)<span className="text-red-500 ml-1">*</span></label>
-                    <input required type="number" step="0.01" min="0" placeholder="ex: 150.00" className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Devise<span className="text-red-500 ml-1">*</span></label>
+                        <select required className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}>
+                          <option value="USD">Dollar Américain (USD)</option>
+                          <option value="CDF">Franc Congolais (CDF)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Montant<span className="text-red-500 ml-1">*</span></label>
+                        <input required type="number" step="0.01" min="0" placeholder="ex: 150.00" className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Moyen de paiement<span className="text-red-500 ml-1">*</span></label>
+                        <select required className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})}>
+                          <option value="cash">Espèces</option>
+                          <option value="mobile_money">Mobile Money (M-Pesa, Airtel...)</option>
+                          <option value="bank_transfer">Virement Bancaire</option>
+                          <option value="check">Chèque</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Reçu par<span className="text-red-500 ml-1">*</span></label>
+                        <input required type="text" className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.receivedBy} onChange={e => setFormData({...formData, receivedBy: e.target.value})} />
+                      </div>
+                    </div>
                   </div>
                ) : (
                   <div>

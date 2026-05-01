@@ -64,6 +64,23 @@ export function Layout() {
             );
           })}
         </nav>
+        
+        <div className="p-4 border-t border-slate-800 mt-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+               <div className="w-8 h-8 rounded-[6px] bg-slate-800 flex items-center justify-center text-[12px] font-bold text-blue-400 uppercase shrink-0">
+                  {user.email?.charAt(0)}
+               </div>
+               <div className="overflow-hidden">
+                 <p className="text-[12px] font-medium text-slate-200 truncate">{user.displayName || user.email?.split('@')[0]}</p>
+                 <p className="text-[10px] text-slate-400 truncate capitalize">{role?.replace('_', ' ')}</p>
+               </div>
+            </div>
+            <button onClick={logOut} className="p-1.5 text-slate-400 hover:text-white rounded-[6px] hover:bg-slate-800 transition" title="Déconnexion">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </aside>
 
       {/* Main content */}
@@ -72,46 +89,6 @@ export function Layout() {
         <header className="hidden md:flex bg-white border-b border-slate-200 h-[60px] items-center justify-between px-6 shrink-0 z-10 relative">
           <div className="flex items-center">
             <span className="font-semibold text-[15px]">Gestion Intégrée de l'Orphelinat</span>
-          </div>
-          <div className="flex items-center gap-4">
-             <div className="relative">
-                <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Rechercher un dossier..." className="pl-9 pr-3 py-1.5 border border-slate-200 rounded-[4px] text-[13px] w-[240px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
-             </div>
-             
-             <div className="relative" ref={profileRef}>
-               <button 
-                 onClick={() => setProfileOpen(!profileOpen)}
-                 className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-bold text-blue-700 uppercase cursor-pointer hover:bg-blue-200 transition-colors"
-               >
-                  {user.email?.charAt(0)}
-               </button>
-               
-               <AnimatePresence>
-               {profileOpen && (
-                 <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-[6px] shadow-lg py-1 z-50 origin-top-right"
-                 >
-                    <div className="px-4 py-2 border-b border-slate-100">
-                      <p className="text-[13px] font-medium text-slate-900 truncate">{user.displayName || 'Utilisateur'}</p>
-                      <p className="text-[11px] text-slate-500 truncate">{user.email}</p>
-                      <p className="text-[10px] uppercase font-bold text-blue-600 mt-1">{role?.replace('_', ' ')}</p>
-                    </div>
-                    <button
-                      onClick={logOut}
-                      className="w-full text-left px-4 py-2 text-[13px] text-slate-700 hover:bg-slate-50 hover:text-red-600 flex items-center gap-2 transition-colors"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      Déconnexion
-                    </button>
-                 </motion.div>
-               )}
-               </AnimatePresence>
-             </div>
           </div>
         </header>
 
