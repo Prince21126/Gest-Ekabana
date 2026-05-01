@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access information (Directeur, Assistant Social, Comptable)",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["director", "social_worker", "accountant"] },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["email", "name", "role", "createdAt"]
+    },
+    "Child": {
+      "title": "Child",
+      "description": "Profile of a child in the orphanage",
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "dateOfBirth": { "type": "string" },
+        "gender": { "type": "string" },
+        "admissionDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "adopted", "transferred"] },
+        "photoUrl": { "type": "string" },
+        "medicalNotes": { "type": "string" },
+        "schoolNotes": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["firstName", "lastName", "dateOfBirth", "status", "createdBy", "createdAt"]
+    },
+    "ChildDocument": {
+      "title": "Child Document",
+      "description": "Digitized documents for a child (birth certificate, etc)",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "url": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "type", "url", "uploadedBy", "createdAt"]
+    },
+    "Donor": {
+      "title": "Donor",
+      "description": "Information about a person or organization donating",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["individual", "organization"] },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "Donation": {
+      "title": "Donation",
+      "description": "Record of a physical or financial donation",
+      "type": "object",
+      "properties": {
+        "donorId": { "type": "string" },
+        "type": { "type": "string", "enum": ["money", "in_kind"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "itemDescription": { "type": "string" },
+        "date": { "type": "string" },
+        "allocatedToChildId": { "type": "string" },
+        "purpose": { "type": "string" },
+        "recordedBy": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["donorId", "type", "date", "recordedBy", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "System users with RBAC roles"
+    },
+    "children/{childId}": {
+      "schema": { "$ref": "Child" },
+      "description": "Children records"
+    },
+    "children/{childId}/documents/{documentId}": {
+      "schema": { "$ref": "ChildDocument" },
+      "description": "Scanned documents for children"
+    },
+    "donors/{donorId}": {
+      "schema": { "$ref": "Donor" },
+      "description": "Database of donors"
+    },
+    "donations/{donationId}": {
+      "schema": { "$ref": "Donation" },
+      "description": "Donation records and allocation"
+    }
+  }
+}
