@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { collection, onSnapshot, query, setDoc, doc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { Plus, Search, HeartHandshake, DollarSign, Package } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function Donations() {
   const [donations, setDonations] = useState<any[]>([]);
@@ -10,10 +11,14 @@ export function Donations() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDonor, setSelectedDonor] = useState<any | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
-    donorName: '', // Simulating either select existing or create new for UX speed
+    donorName: '', 
+    donorEmail: '',
+    donorPhone: '',
+    donorAddress: '',
     type: 'money',
     amount: '',
     itemDescription: '',
@@ -49,6 +54,9 @@ export function Donations() {
         donorId = doc(collection(db, 'donors')).id;
         await setDoc(doc(db, 'donors', donorId), {
           name: formData.donorName,
+          email: formData.donorEmail,
+          phone: formData.donorPhone,
+          address: formData.donorAddress,
           createdAt: Date.now()
         });
       }
@@ -64,19 +72,30 @@ export function Donations() {
         createdAt: Date.now()
       });
       setShowAddModal(false);
-      setFormData({ donorName: '', type: 'money', amount: '', itemDescription: '', date: new Date().toISOString().split('T')[0] });
+      setFormData({ donorName: '', donorEmail: '', donorPhone: '', donorAddress: '', type: 'money', amount: '', itemDescription: '', date: new Date().toISOString().split('T')[0] });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'donations');
     }
   };
 
-  const getDonorName = (id: string) => {
-    const donor = donors.find(d => d.id === id);
-    return donor ? donor.name : 'Inconnu';
+  const getDonor = (id: string) => {
+    return donors.find(d => d.id === id);
   };
 
+  const filteredDonations = donations.filter(don => {
+    const donorName = getDonor(don.donorId)?.name || 'Inconnu';
+    return searchTerm === '' || 
+      donorName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      don.itemDescription?.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6"
+    >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Dons et Financements</h1>
@@ -84,7 +103,7 @@ export function Donations() {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-[4px] text-[12px] font-semibold hover:bg-emerald-700 transition"
+          className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-[6px] text-[12px] font-bold hover:bg-emerald-700 hover:shadow-md transition shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Enregistrer un don
@@ -92,14 +111,14 @@ export function Donations() {
       </div>
 
       <div className="bg-white rounded-[6px] border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-          <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Flux des Dons Entrants</div>
-          <div className="relative w-[240px]">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+          <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Flux des Dons Entrants</div>
+          <div className="relative w-full sm:w-[280px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Filtrer..."
-              className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-[4px] text-[13px] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-[6px] text-[13px] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-sm bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -119,13 +138,22 @@ export function Donations() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-[13px]">Chargement...</td></tr>
-              ) : donations.length === 0 ? (
-                 <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-[13px]">Aucun don enregistré.</td></tr>
+              ) : filteredDonations.length === 0 ? (
+                 <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-[13px]">Aucun don trouvé.</td></tr>
               ) : (
-                donations.map(don => (
+                filteredDonations.map(don => (
                   <tr key={don.id} className="hover:bg-slate-50 transition">
                     <td className="px-4 py-3 font-medium text-slate-900">
-                      {getDonorName(don.donorId)}
+                      {getDonor(don.donorId) ? (
+                        <button
+                          onClick={() => setSelectedDonor(getDonor(don.donorId))}
+                          className="text-blue-600 hover:text-blue-800 hover:underline focus:outline-none transition-colors"
+                        >
+                          {getDonor(don.donorId).name}
+                        </button>
+                      ) : (
+                        'Inconnu'
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {don.type === 'money' ? (
@@ -152,57 +180,140 @@ export function Donations() {
         </div>
       </div>
 
+       <AnimatePresence>
        {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-100 flex items-center gap-2 text-emerald-600">
-              <HeartHandshake className="w-6 h-6" />
-              <h2 className="text-xl font-bold text-gray-900">Enregistrer un Don</h2>
-            </div>
-            <form onSubmit={handleAddDonation} className="p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white rounded-[12px] shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center gap-3 bg-emerald-50/50 rounded-t-[12px] text-emerald-700 shrink-0">
+               <div className="bg-emerald-100 p-2 rounded-full">
+                 <HeartHandshake className="w-6 h-6" />
+               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom du donateur</label>
-                <input required type="text" className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-emerald-500 focus:border-emerald-500" value={formData.donorName} onChange={e => setFormData({...formData, donorName: e.target.value})} placeholder="Recherché ou créé automatiquement" />
+                <h2 className="text-xl font-bold text-slate-900">Enregistrer un Don</h2>
+                <p className="text-[13px] text-slate-600 mt-0.5">Veuillez remplir tous les champs ci-dessous.</p>
+              </div>
+            </div>
+            <form onSubmit={handleAddDonation} className="p-7 space-y-6 text-[13px] overflow-y-auto">
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Nom du donateur<span className="text-red-500 ml-1">*</span></label>
+                <input required type="text" className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.donorName} onChange={e => setFormData({...formData, donorName: e.target.value})} placeholder="Recherché ou créé automatiquement" />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="p-5 bg-slate-50 border border-slate-200 rounded-[8px] space-y-4">
+                <p className="text-[11px] uppercase tracking-wider text-slate-600 font-bold border-b border-slate-200 pb-2">Infos Nouvel Enregistrement</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-slate-700 tracking-wide mb-1.5">Email<span className="text-red-500 ml-1">*</span></label>
+                    <input required type="email" placeholder="Obligatoire" className="w-full border-slate-300 rounded-[6px] border px-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-white" value={formData.donorEmail} onChange={e => setFormData({...formData, donorEmail: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-slate-700 tracking-wide mb-1.5">Téléphone<span className="text-red-500 ml-1">*</span></label>
+                    <input required type="text" placeholder="Obligatoire" className="w-full border-slate-300 rounded-[6px] border px-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-white" value={formData.donorPhone} onChange={e => setFormData({...formData, donorPhone: e.target.value})} />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type de don</label>
-                  <select className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-emerald-500 focus:border-emerald-500" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                  <label className="block text-[12px] font-semibold text-slate-700 tracking-wide mb-1.5">Adresse Complète<span className="text-red-500 ml-1">*</span></label>
+                  <input required type="text" placeholder="Obligatoire" className="w-full border-slate-300 rounded-[6px] border px-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-white" value={formData.donorAddress} onChange={e => setFormData({...formData, donorAddress: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Type de don<span className="text-red-500 ml-1">*</span></label>
+                  <select required className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
                     <option value="money">Financier ($)</option>
                     <option value="in_kind">En nature</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input required type="date" className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-emerald-500 focus:border-emerald-500" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                  <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Date<span className="text-red-500 ml-1">*</span></label>
+                  <input required type="date" className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
                 </div>
               </div>
 
                {formData.type === 'money' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Montant (USD)</label>
-                    <input required type="number" step="0.01" min="0" className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-emerald-500 focus:border-emerald-500" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                    <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Montant (USD)<span className="text-red-500 ml-1">*</span></label>
+                    <input required type="number" step="0.01" min="0" placeholder="ex: 150.00" className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
                   </div>
                ) : (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description (Nature du don)</label>
-                    <textarea required className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-emerald-500 focus:border-emerald-500" value={formData.itemDescription} onChange={e => setFormData({...formData, itemDescription: e.target.value})} rows={3}></textarea>
+                    <label className="block text-[12px] font-semibold text-slate-700 tracking-wide uppercase mb-1.5">Description (Nature du don)<span className="text-red-500 ml-1">*</span></label>
+                    <textarea required placeholder="Décrivez le don..." className="w-full border-slate-300 rounded-[6px] border px-3.5 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow bg-slate-50 hover:bg-slate-100 focus:bg-white resize-none" value={formData.itemDescription} onChange={e => setFormData({...formData, itemDescription: e.target.value})} rows={3}></textarea>
                   </div>
                )}
 
-              <div className="pt-4 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+              <div className="pt-5 flex justify-end gap-3 border-t border-slate-100 shrink-0">
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-5 py-2.5 text-[13px] font-bold text-slate-700 bg-white border border-slate-300 rounded-[6px] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-all shadow-sm">
                   Annuler
                 </button>
-                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 border border-transparent rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                <button type="submit" className="px-6 py-2.5 text-[13px] font-bold text-white bg-emerald-600 border border-transparent rounded-[6px] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 hover:bg-emerald-700 hover:shadow-md hover:-translate-y-0.5 transition-all">
                   Valider le don
                 </button>
               </div>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+      </AnimatePresence>
+
+      <AnimatePresence>
+      {selectedDonor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white rounded-[12px] shadow-2xl max-w-sm w-full"
+          >
+            <div className="p-5 border-b border-slate-100 flex items-center gap-3 bg-blue-50/50 rounded-t-[12px]">
+               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-600 shadow-sm border border-blue-200">
+                 <HeartHandshake className="w-5 h-5" />
+               </div>
+               <div>
+                 <h2 className="text-lg font-bold text-slate-900 leading-tight">Profil Donateur</h2>
+                 <p className="text-[12px] text-slate-500 font-medium tracking-wide">Informations de contact</p>
+               </div>
+            </div>
+            <div className="p-6 space-y-5 text-[13px]">
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Nom Complet</span>
+                <span className="font-semibold text-slate-900 text-[15px]">{selectedDonor.name}</span>
+              </div>
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Email</span>
+                <span className="text-slate-700">{selectedDonor.email || 'Non renseigné'}</span>
+              </div>
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Téléphone</span>
+                <span className="text-slate-700">{selectedDonor.phone || 'Non renseigné'}</span>
+              </div>
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Adresse</span>
+                <span className="text-slate-700">{selectedDonor.address || 'Non renseignée'}</span>
+              </div>
+               <div>
+                <span className="block text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Date d'enregistrement</span>
+                <span className="text-slate-700">{selectedDonor.createdAt ? new Date(selectedDonor.createdAt).toLocaleDateString() : 'Inconnue'}</span>
+              </div>
+            </div>
+            <div className="p-5 border-t border-slate-100 bg-slate-50 rounded-b-[12px] flex justify-end">
+              <button 
+                onClick={() => setSelectedDonor(null)} 
+                className="px-5 py-2 text-[13px] font-bold text-slate-700 bg-white border border-slate-300 rounded-[6px] shadow-sm hover:bg-slate-100 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
+              >
+                Fermer
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

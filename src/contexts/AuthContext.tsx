@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -9,6 +9,8 @@ interface AuthContextType {
   loading: boolean;
   signIn: () => Promise<void>;
   logOut: () => Promise<void>;
+  signInWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string, name: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -17,6 +19,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signIn: async () => {},
   logOut: async () => {},
+  signInWithEmail: async () => {},
+  signUpWithEmail: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -28,17 +32,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        // Fetch or create user document
         const userDocRef = doc(db, 'users', user.uid);
         const userDocSnap = await getDoc(userDocRef);
         
         if (userDocSnap.exists()) {
           setRole(userDocSnap.data().role as any);
         } else {
-          // If first user, make them director, else make them social_worker by default for now (can be adjusted)
-          // Alternatively, wait for an admin to assign a role. Let's make the user "social_worker" by default or prompt. 
-          // For the sake of this prototype, if it's the first login, let's create a director profile.
-          const defaultRole = 'director'; // Just for prototype easily. In production, we'd assign manually.
+          const defaultRole = 'director'; 
           await setDoc(userDocRef, {
             email: user.email,
             name: user.displayName || 'Utilisateur',
@@ -64,11 +64,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error.code === 'auth/popup-blocked') {
         alert("La fenêtre de connexion a été bloquée. Veuillez autoriser les pop-ups pour ce site ou ouvrir l'application dans un nouvel onglet.");
       } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-        // L'utilisateur a fermé ou annulé le popup, on peut ignorer silencieusement.
         console.log("Connexion annulée par l'utilisateur.");
       } else {
         console.error("Erreur d'authentification:", error);
         alert(`Erreur lors de la connexion: ${error.message}`);
+      }
+    }
+  };
+
+  const signInWithEmail = async (email: string, pass: string) => {
+    await signInWithEmailAndPassword(auth, email, pass);
+  };
+
+  const signUpWithEmail = async (email: string, pass: string, name: string) => {
+    const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+    if (userCred.user) {
+      await updateProfile(userCred.user, { displayName: name });
+      // Doc creation is handled by onAuthStateChanged, but we can do it here to make sure name is caught
+      const userDocRef = doc(db, 'users', userCred.user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (!userDocSnap.exists()) {
+        await setDoc(userDocRef, {
+          email: userCred.user.email,
+          name: name,
+          role: 'director', // Just for the sake of demo, making everyone a director initially
+          createdAt: Date.now()
+        });
+        setRole('director');
       }
     }
   };
@@ -78,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, signIn, logOut }}>
+    <AuthContext.Provider value={{ user, role, loading, signIn, logOut, signInWithEmail, signUpWithEmail }}>
       {!loading && children}
     </AuthContext.Provider>
   );
